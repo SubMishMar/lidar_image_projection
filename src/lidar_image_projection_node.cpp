@@ -40,7 +40,7 @@ private:
 
     Eigen::MatrixXd *C_T_L;
 
-    std::vector<cv::Point2d> lidar_pts_in_fov;
+    std::vector<cv::Point3d> lidar_pts_in_fov;
 
 public:
     lidarImageProjection() {
@@ -80,6 +80,9 @@ public:
         pcl_conversions::toPCL(*cloud_msg, *cloud_in);
         pcl::fromPCLPointCloud2(*cloud_in, *in_cloud);
 
+        double max_range, min_range;
+        max_range = 0;
+        min_range = 1000000;
         for(size_t i = 0; i < in_cloud->points.size(); i++) {
 
             // Reject points behind the LiDAR
@@ -111,7 +114,16 @@ public:
 
             double x_1 = X/Z;
             double y_1 = Y/Z;
-            double r = x_1*x_1 + y_1*y_1;
+
+            double range = sqrt(X*X + Y*Y + Z*Z);
+
+            if(range > max_range) {
+                max_range = range;
+            }
+            if(range < min_range) {
+                min_range = range;
+            }
+//            double r = x_1*x_1 + y_1*y_1;
 
 //        x_1 = (x_1 * (1.0 + Dist(0) * r * r + Dist(1) * r * r * r * r +
 //                      Dist(4) * r * r * r * r * r * r) +
@@ -124,18 +136,22 @@ public:
             Eigen::Vector3d x1y1w;
             x1y1w << x_1, y_1, 1;
             Eigen::Vector3d uvw = camMat*x1y1w;
-            lidar_pts_in_fov.push_back(cv::Point2d(uvw(0), uvw(1)));
+            lidar_pts_in_fov.push_back(cv::Point3d(uvw(0), uvw(1), range));
         }
 
         cv::Mat image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
         if(lidar_pts_in_fov.size() > 0) {
-            for(size_t i = 0; i < lidar_pts_in_fov.size(); i++)
-                cv::circle(image_in, lidar_pts_in_fov[i], 4, CV_RGB(255, 0, 0), -1, 8, 0);
+            for(size_t i = 0; i < lidar_pts_in_fov.size(); i++) {
+                double range = lidar_pts_in_fov[i].z;
+                double red_field = 255*(range - min_range)/(max_range - min_range);
+                double green_field = 255*(max_range - range)/(max_range - min_range);
+                cv::circle(image_in, cv::Point2d(lidar_pts_in_fov[i].x,
+                        lidar_pts_in_fov[i].y), 4, CV_RGB(red_field, green_field, 0), -1, 8, 0);}
         } else {
             ROS_WARN("No lidar points in FOV");
         }
         cv::imshow("view", image_in);
-        cv::waitKey(30);
+        cv::waitKey(10);
     }
 };
 
