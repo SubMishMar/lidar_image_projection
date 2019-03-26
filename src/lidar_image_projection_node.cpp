@@ -135,8 +135,8 @@ void caminfoCallback(const sensor_msgs::CameraInfoConstPtr& msg) {
 
     Dist << msg->D[0], msg->D[1], msg->D[2], msg->D[3], msg->D[4];
 
-    fov_x = atan2(msg->height, 2*msg->K[0])*180/CV_PI;
-    fov_y = atan2(msg->width, 2*msg->K[4])*180/CV_PI;
+    fov_x = atan2(msg->height, 2*msg->P[0])*180/CV_PI;
+    fov_y = atan2(msg->width, 2*msg->P[5])*180/CV_PI;
 }
 
 int main(int argc, char **argv) {
