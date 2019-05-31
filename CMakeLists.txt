@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   message_filters
   tf
+  velodyne_pointcloud
 )
 find_package( OpenCV REQUIRED )
 find_package( PCL REQUIRED)
@@ -140,7 +141,12 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(${PROJECT_NAME}_node src/lidar_image_projection_node.cpp)
+add_executable(${PROJECT_NAME}_node 
+		src/lidar_image_projection_node.cpp 
+                src/Image.cpp 
+                src/Velodyne.cpp 
+                src/Similarity.cpp 
+                src/Calibration3DMarker.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
