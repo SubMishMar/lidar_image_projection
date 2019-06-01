@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
   <param name ="/use_sim_time" value="true"/>
+  <param name = "result_file" type="string" value="$(find lidar_image_projection)/result/C_T_L.txt"/>
+
+  <param name= "project_only_plane" type="bool" value="false"/>
+
+  <param name = "camera_in_topic" type="string" value="/kitti/camera_color_left/image_raw"/>
+  <param name = "lidar_in_topic" type="string" value="/kitti/velo/pointcloud"/>
+  <param name = "camera_name" type="string" value="kitti_camera_color_left"/>
+  
+  <param name = "dist_cut_off" type="int" value="5"/>
+
+  <param name = "cam_config_file_path" type="string" value="$(find lidar_image_projection)/config/kitti_camera_color_left.yaml" />
   <node  pkg="lidar_image_projection" name="lidar_image_projection" type="lidar_image_projection_node" output="screen">
   </node>
 </launch>

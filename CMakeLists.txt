@@ -8,15 +8,15 @@ project(lidar_image_projection)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  image_transport
-  roscpp
-  sensor_msgs
-  cv_bridge
-  pcl_ros
-  pcl_conversions
-  message_filters
-  tf
-  velodyne_pointcloud
+		pcl_conversions
+		pcl_ros
+		roscpp
+		sensor_msgs
+		velodyne_pointcloud
+		message_filters
+		cv_bridge
+		tf
+		tf_conversions
 )
 find_package( OpenCV REQUIRED )
 find_package( PCL REQUIRED)
