@@ -45,6 +45,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <random>
+
 #include <Velodyne.h>
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2,
@@ -132,6 +134,9 @@ public:
                 i++;
             }
         }
+
+        addGaussianNoise(C_T_L);
+
         L_T_C = C_T_L.inverse();
 
         C_R_L = C_T_L.block(0, 0, 3, 3);
@@ -152,6 +157,51 @@ public:
                          image_width,
                          distCoeff,
                          projection_matrix);
+    }
+
+    void addGaussianNoise(Eigen::Matrix4d &transformation) {
+        std::vector<double> data_rot = {0, 0, 0};
+        const double mean_rot = 0.0;
+        const double stddev_rot = 2;
+        std::default_random_engine generator_rot;
+        std::normal_distribution<double> dist(mean_rot, stddev_rot);
+
+        // Add Gaussian noise
+        for (auto& x : data_rot) {
+            x = x + dist(generator_rot);
+        }
+
+        // Output the result, for demonstration purposes
+        double roll = data_rot[0]*M_PI/180;
+        double pitch = data_rot[1]*M_PI/180;
+        double yaw = data_rot[2]*M_PI/180;
+
+        Eigen::Matrix3d m;
+        m = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX())
+            * Eigen::AngleAxisd(pitch,  Eigen::Vector3d::UnitY())
+            * Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
+
+        std::vector<double> data_trans = {0, 0, 0};
+        const double mean_trans = 0.0;
+        const double stddev_trans = 0.05;
+        std::default_random_engine generator_trans;
+        std::normal_distribution<double> dist_trans(mean_trans, stddev_trans);
+
+        // Add Gaussian noise
+        for (auto& x : data_trans) {
+            x = x + dist_trans(generator_trans);
+        }
+
+        // Output the result, for demonstration purposes
+        Eigen::Vector3d trans;
+        trans(0) = data_trans[0];
+        trans(1) = data_trans[1];
+        trans(2) = data_trans[2];
+
+        Eigen::Matrix4d trans_noise = Eigen::Matrix4d::Identity();
+        trans_noise.block(0, 0, 3, 3) = m;
+        trans_noise.block(0, 3, 3, 1) = trans;
+        transformation = transformation*trans_noise;
     }
 
     void readCameraParams(std::string cam_config_file_path,
