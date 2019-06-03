@@ -96,6 +96,8 @@ private:
 
     std::string camera_name;
 
+    double stddev_rot, stddev_trans;
+
 public:
     lidarImageProjection() {
         camera_in_topic = readParam<std::string>(nh, "camera_in_topic");
@@ -121,6 +123,9 @@ public:
 
         projection_matrix = cv::Mat::zeros(3, 3, CV_64F);
         distCoeff = cv::Mat::zeros(5, 1, CV_64F);
+
+        stddev_rot = readParam<double>(nh, "stddev_rot");
+        stddev_trans = readParam<double>(nh, "stddev_trans");
 
         std::ifstream myReadFile(result_str.c_str());
         std::string word;
@@ -162,7 +167,6 @@ public:
     void addGaussianNoise(Eigen::Matrix4d &transformation) {
         std::vector<double> data_rot = {0, 0, 0};
         const double mean_rot = 0.0;
-        const double stddev_rot = 2;
         std::default_random_engine generator_rot;
         std::normal_distribution<double> dist(mean_rot, stddev_rot);
 
@@ -183,7 +187,6 @@ public:
 
         std::vector<double> data_trans = {0, 0, 0};
         const double mean_trans = 0.0;
-        const double stddev_trans = 0.05;
         std::default_random_engine generator_trans;
         std::normal_distribution<double> dist_trans(mean_trans, stddev_trans);
 

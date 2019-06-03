@@ -12,6 +12,8 @@
   <param name = "dist_cut_off" type="int" value="5"/>
 
   <param name = "cam_config_file_path" type="string" value="$(find lidar_image_projection)/config/kitti_camera_color_left.yaml" />
+  <param name = "stddev_rot" type="double" value="0.0"/>
+  <param name = "stddev_trans" type="double" value="0.0"/>
   <node  pkg="lidar_image_projection" name="lidar_image_projection" type="lidar_image_projection_node" output="screen">
   </node>
 </launch>
