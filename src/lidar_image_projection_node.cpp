@@ -334,7 +334,9 @@ public:
     }
 
     void colorLidarPointsOnImage(double min_range,
-                                 double max_range) {
+                                 double max_range,
+                                 double min_height,
+                                 double max_height) {
         for(size_t i = 0; i < imagePoints.size(); i++) {
             double X = objectPoints_C[i].x;
             double Y = objectPoints_C[i].y;
@@ -342,16 +344,15 @@ public:
             double range = sqrt(X*X + Y*Y + Z*Z);
             double red_field = 255*(range - min_range)/(max_range - min_range);
             double green_field = 255*(max_range - range)/(max_range - min_range);
-            cv::circle(image_in, imagePoints[i], 1,
-                       CV_RGB(red_field, green_field, 0), -1, 8, 0);
+            double blue_field = 255*(Z - min_height)/(max_height - min_height);
+            cv::circle(image_in, imagePoints[i], 8,
+                       CV_RGB(red_field, green_field, blue_field), -1, 8, 0);
         }
     }
 
     void colorLidarPointsOnImage() {
         for(size_t i = 0; i < imagePoints.size(); i++) {
             cv::Vec3b rgb = atf(image_in, imagePoints[i]);
-            cv::circle(image_in, imagePoints[i], 1,
-                       CV_RGB(rgb.val[2], rgb.val[1], rgb.val[0]), -1, 8, 0);
             cv::circle(image_projected, imagePoints[i], 1,
                        CV_RGB(rgb.val[2], rgb.val[1], rgb.val[0]), -1, 8, 0);
         }
@@ -372,8 +373,9 @@ public:
         fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
 
         double max_range, min_range;
-        max_range = -INFINITY;
-        min_range = INFINITY;
+        double min_height, max_height;
+        max_range = min_height = -INFINITY;
+        min_range = max_height = INFINITY;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         if(project_only_plane) {
@@ -420,9 +422,16 @@ public:
                 if(range > max_range) {
                     max_range = range;
                 }
+
                 if(range < min_range) {
                     min_range = range;
                 }
+
+                if(Z > max_height)
+                    max_height = Z;
+
+                if(Z < min_height)
+                    min_height = Z;
 
                 objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
                 objectPoints_C.push_back(cv::Point3d(X, Y, Z));
@@ -441,16 +450,12 @@ public:
         cloud_pub.publish(out_cloud_ros);
 
         /// Color Lidar Points on the image a/c to distance
-//        colorLidarPointsOnImage(min_range, max_range);
-        colorLidarPointsOnImage();
+        colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
         sensor_msgs::ImagePtr msg =
                 cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_in).toImageMsg();
         image_pub.publish(msg);
-        cv::imshow("view1", image_in);
-        cv::waitKey(10);
-
-        cv::imshow("view2", image_projected);
-        cv::waitKey(10);
+//        cv::imshow("view1", image_in);
+//        cv::waitKey(10);
     }
 };
 
