@@ -98,6 +98,8 @@ private:
 
     double stddev_rot, stddev_trans;
 
+    cv::Mat image_projected;
+
 public:
     lidarImageProjection() {
         camera_in_topic = readParam<std::string>(nh, "camera_in_topic");
@@ -340,8 +342,18 @@ public:
             double range = sqrt(X*X + Y*Y + Z*Z);
             double red_field = 255*(range - min_range)/(max_range - min_range);
             double green_field = 255*(max_range - range)/(max_range - min_range);
-            cv::circle(image_in, imagePoints[i], 6,
+            cv::circle(image_in, imagePoints[i], 1,
                        CV_RGB(red_field, green_field, 0), -1, 8, 0);
+        }
+    }
+
+    void colorLidarPointsOnImage() {
+        for(size_t i = 0; i < imagePoints.size(); i++) {
+            cv::Vec3b rgb = atf(image_in, imagePoints[i]);
+            cv::circle(image_in, imagePoints[i], 1,
+                       CV_RGB(rgb.val[2], rgb.val[1], rgb.val[0]), -1, 8, 0);
+            cv::circle(image_projected, imagePoints[i], 1,
+                       CV_RGB(rgb.val[2], rgb.val[1], rgb.val[0]), -1, 8, 0);
         }
     }
 
@@ -353,7 +365,7 @@ public:
         imagePoints.clear();
         publishTransforms();
         image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
-
+        image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
 
         double fov_x, fov_y;
         fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
@@ -429,12 +441,15 @@ public:
         cloud_pub.publish(out_cloud_ros);
 
         /// Color Lidar Points on the image a/c to distance
-        colorLidarPointsOnImage(min_range, max_range);
-
+//        colorLidarPointsOnImage(min_range, max_range);
+        colorLidarPointsOnImage();
         sensor_msgs::ImagePtr msg =
                 cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_in).toImageMsg();
         image_pub.publish(msg);
-        cv::imshow("view", image_in);
+        cv::imshow("view1", image_in);
+        cv::waitKey(10);
+
+        cv::imshow("view2", image_projected);
         cv::waitKey(10);
     }
 };
