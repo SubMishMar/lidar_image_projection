@@ -11,6 +11,7 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/sync_policies/exact_time.h>
 
 #include <pcl/common/common.h>
 #include <pcl/common/pca.h>
@@ -76,6 +77,8 @@ private:
     cv::Mat projection_matrix;
     cv::Mat distCoeff;
 
+    bool color_projection;
+
     std::vector<cv::Point3d> objectPoints_L, objectPoints_C;
     std::vector<cv::Point2d> imagePoints;
 
@@ -122,7 +125,7 @@ public:
 
         result_str = readParam<std::string>(nh, "result_file");
         project_only_plane = readParam<bool>(nh, "project_only_plane");
-
+        color_projection = readParam<bool>(nh, "color_projection");
         projection_matrix = cv::Mat::zeros(3, 3, CV_64F);
         distCoeff = cv::Mat::zeros(5, 1, CV_64F);
 
@@ -341,12 +344,21 @@ public:
             double X = objectPoints_C[i].x;
             double Y = objectPoints_C[i].y;
             double Z = objectPoints_C[i].z;
-            double range = sqrt(X*X + Y*Y + Z*Z);
-            double red_field = 255*(range - min_range)/(max_range - min_range);
-            double green_field = 255*(max_range - range)/(max_range - min_range);
-            double blue_field = 255*(Z - min_height)/(max_height - min_height);
-            cv::circle(image_in, imagePoints[i], 8,
-                       CV_RGB(red_field, green_field, blue_field), -1, 8, 0);
+//            double range = sqrt(X*X + Y*Y + Z*Z);
+            double range = Z;
+            if(color_projection) {
+                double red_field = 255*(range - min_range)/(max_range - min_range);
+                double green_field = 255*(max_range - range)/(max_range - min_range);
+                double blue_field = 255*(Z - min_height)/(max_height - min_height);
+                cv::circle(image_in, imagePoints[i], 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+            } else {
+                double red_field = 255;
+                double green_field = 255;
+                double blue_field = 255;
+                cv::circle(image_in, imagePoints[i], 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+            }
         }
     }
 
@@ -360,102 +372,110 @@ public:
 
     void callback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
                   const sensor_msgs::ImageConstPtr &image_msg) {
-        lidar_frameId = cloud_msg->header.frame_id;
-        objectPoints_L.clear();
-        objectPoints_C.clear();
-        imagePoints.clear();
-        publishTransforms();
-        image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
-        image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
+        double time1 = cloud_msg->header.stamp.toSec();
+        double time2 = image_msg->header.stamp.toSec();
+        double time_diff = time1 - time2;
+        if(fabs(time_diff) <= 0.01) {
+            ROS_INFO_STREAM("Time diff: " << time_diff);
+            lidar_frameId = cloud_msg->header.frame_id;
+            objectPoints_L.clear();
+            objectPoints_C.clear();
+            imagePoints.clear();
+            publishTransforms();
+            image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
+            image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
 
-        double fov_x, fov_y;
-        fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
-        fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
+            double fov_x, fov_y;
+            fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
+            fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
 
-        double max_range, min_range;
-        double min_height, max_height;
-        max_range = min_height = -INFINITY;
-        min_range = max_height = INFINITY;
+            double max_range, min_range;
+            double min_height, max_height;
+            max_range = min_height = -INFINITY;
+            min_range = max_height = INFINITY;
 
-        pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        if(project_only_plane) {
-            in_cloud = planeFilter(cloud_msg);
-            for(size_t i = 0; i < in_cloud->points.size(); i++) {
-                objectPoints_L.push_back(cv::Point3d(in_cloud->points[i].x, in_cloud->points[i].y, in_cloud->points[i].z));
-            }
-            cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
-        } else {
-            pcl::PCLPointCloud2 *cloud_in = new pcl::PCLPointCloud2;
-            pcl_conversions::toPCL(*cloud_msg, *cloud_in);
-            pcl::fromPCLPointCloud2(*cloud_in, *in_cloud);
-
-            for(size_t i = 0; i < in_cloud->points.size(); i++) {
-
-                // Reject points behind the LiDAR
-                if(in_cloud->points[i].x < 0)
-                    continue;
-
-                Eigen::Vector4d pointCloud_L;
-                pointCloud_L[0] = in_cloud->points[i].x;
-                pointCloud_L[1] = in_cloud->points[i].y;
-                pointCloud_L[2] = in_cloud->points[i].z;
-                pointCloud_L[3] = 1;
-
-                Eigen::Vector3d pointCloud_C;
-                pointCloud_C = C_T_L.block(0, 0, 3, 4)*pointCloud_L;
-
-                double X = pointCloud_C[0];
-                double Y = pointCloud_C[1];
-                double Z = pointCloud_C[2];
-
-                double Xangle = atan2(X, Z)*180/CV_PI;
-                double Yangle = atan2(Y, Z)*180/CV_PI;
-
-                if(Xangle < -fov_x/2 || Xangle > fov_x/2)
-                    continue;
-
-                if(Yangle < -fov_y/2 || Yangle > fov_y/2)
-                    continue;
-
-                double range = sqrt(X*X + Y*Y + Z*Z);
-
-                if(range > max_range) {
-                    max_range = range;
+            pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+            if(project_only_plane) {
+                in_cloud = planeFilter(cloud_msg);
+                for(size_t i = 0; i < in_cloud->points.size(); i++) {
+                    objectPoints_L.push_back(cv::Point3d(in_cloud->points[i].x, in_cloud->points[i].y, in_cloud->points[i].z));
                 }
+                cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
+            } else {
+                pcl::PCLPointCloud2 *cloud_in = new pcl::PCLPointCloud2;
+                pcl_conversions::toPCL(*cloud_msg, *cloud_in);
+                pcl::fromPCLPointCloud2(*cloud_in, *in_cloud);
 
-                if(range < min_range) {
-                    min_range = range;
+                for(size_t i = 0; i < in_cloud->points.size(); i++) {
+
+                    // Reject points behind the LiDAR
+                    if(in_cloud->points[i].x < 0)
+                        continue;
+
+                    Eigen::Vector4d pointCloud_L;
+                    pointCloud_L[0] = in_cloud->points[i].x;
+                    pointCloud_L[1] = in_cloud->points[i].y;
+                    pointCloud_L[2] = in_cloud->points[i].z;
+                    pointCloud_L[3] = 1;
+
+                    Eigen::Vector3d pointCloud_C;
+                    pointCloud_C = C_T_L.block(0, 0, 3, 4)*pointCloud_L;
+
+                    double X = pointCloud_C[0];
+                    double Y = pointCloud_C[1];
+                    double Z = pointCloud_C[2];
+
+                    double Xangle = atan2(X, Z)*180/CV_PI;
+                    double Yangle = atan2(Y, Z)*180/CV_PI;
+
+                    if(Xangle < -fov_x/2 || Xangle > fov_x/2)
+                        continue;
+
+                    if(Yangle < -fov_y/2 || Yangle > fov_y/2)
+                        continue;
+
+//                double range = sqrt(X*X + Y*Y + Z*Z);
+                    double range = Z;
+                    if(range > max_range) {
+                        max_range = range;
+                    }
+
+                    if(range < min_range) {
+                        min_range = range;
+                    }
+
+                    if(Z > max_height)
+                        max_height = Z;
+
+                    if(Z < min_height)
+                        min_height = Z;
+
+                    objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
+                    objectPoints_C.push_back(cv::Point3d(X, Y, Z));
                 }
-
-                if(Z > max_height)
-                    max_height = Z;
-
-                if(Z < min_height)
-                    min_height = Z;
-
-                objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
-                objectPoints_C.push_back(cv::Point3d(X, Y, Z));
-            }
 //            std::cout << objectPoints_L.size() << std::endl;
-            cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
-        }
+                cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
+            }
 
-        /// Color the Point Cloud
-        colorPointCloud();
+            /// Color the Point Cloud
+            colorPointCloud();
 
-        pcl::toROSMsg(out_cloud_pcl, out_cloud_ros);
-        out_cloud_ros.header.frame_id = cloud_msg->header.frame_id;
-        out_cloud_ros.header.stamp = cloud_msg->header.stamp;
+            pcl::toROSMsg(out_cloud_pcl, out_cloud_ros);
+            out_cloud_ros.header.frame_id = cloud_msg->header.frame_id;
+            out_cloud_ros.header.stamp = cloud_msg->header.stamp;
 
-        cloud_pub.publish(out_cloud_ros);
+            cloud_pub.publish(out_cloud_ros);
 
-        /// Color Lidar Points on the image a/c to distance
-        colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
-        sensor_msgs::ImagePtr msg =
-                cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_in).toImageMsg();
-        image_pub.publish(msg);
+            /// Color Lidar Points on the image a/c to distance
+            colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
+            sensor_msgs::ImagePtr msg =
+                    cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_in).toImageMsg();
+            image_pub.publish(msg);
 //        cv::imshow("view1", image_in);
 //        cv::waitKey(10);
+        } else {
+            ROS_WARN_STREAM("Time Diff too high!");
+        }
     }
 };
 

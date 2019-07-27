@@ -6,9 +6,9 @@
   <param name= "project_only_plane" type="bool" value="false"/>
   <param name= "color_projection" type="bool" value="true"/>
 
-  <param name = "camera_in_topic" type="string" value="/kitti/camera_color_left/image_raw"/>
+  <param name = "camera_in_topic" type="string" value="/elas/depth"/>
   <param name = "lidar_in_topic" type="string" value="/kitti/velo/pointcloud"/>
-  <param name = "camera_name" type="string" value="kitti_camera_color_left"/>
+  <param name = "camera_name" type="string" value="elas"/>
   
   <param name = "dist_cut_off" type="int" value="5"/>
 
