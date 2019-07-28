@@ -76,6 +76,7 @@ private:
     bool project_only_plane;
     cv::Mat projection_matrix;
     cv::Mat distCoeff;
+    double bf;
 
     bool color_projection;
 
@@ -231,6 +232,7 @@ public:
         fs_cam_config["fy"] >> K.at<double>(1, 1);
         fs_cam_config["cx"] >> K.at<double>(0, 2);
         fs_cam_config["cy"] >> K.at<double>(1, 2);
+        fs_cam_config["bf"] >> bf;
     }
 
     template <typename T>
@@ -341,24 +343,32 @@ public:
                                  double min_height,
                                  double max_height) {
         for(size_t i = 0; i < imagePoints.size(); i++) {
+            int u = imagePoints[i].x;
+            int v = imagePoints[i].y;
+            cv::Vec3f intensity = image_in.at<cv::Vec3b>(v, u);
+
             double X = objectPoints_C[i].x;
             double Y = objectPoints_C[i].y;
             double Z = objectPoints_C[i].z;
 //            double range = sqrt(X*X + Y*Y + Z*Z);
             double range = Z;
-            if(color_projection) {
-                double red_field = 255*(range - min_range)/(max_range - min_range);
-                double green_field = 255*(max_range - range)/(max_range - min_range);
-                double blue_field = 255*(Z - min_height)/(max_height - min_height);
-                cv::circle(image_in, imagePoints[i], 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
-            } else {
-                double red_field = 255;
-                double green_field = 255;
-                double blue_field = 255;
-                cv::circle(image_in, imagePoints[i], 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+            int d = image_in.at<uchar>(v, u);
+            if(d > 0) {
+                ROS_INFO_STREAM(range - bf/(double)d);
             }
+//            if(color_projection) {
+//                double red_field = 255*(range - min_range)/(max_range - min_range);
+//                double green_field = 255*(max_range - range)/(max_range - min_range);
+//                double blue_field = 255*(Z - min_height)/(max_height - min_height);
+//                cv::circle(image_in, imagePoints[i], 1,
+//                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+//            } else {
+//                double red_field = 255;
+//                double green_field = 255;
+//                double blue_field = 255;
+//                cv::circle(image_in, imagePoints[i], 1,
+//                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+//            }
         }
     }
 
@@ -382,7 +392,7 @@ public:
             objectPoints_C.clear();
             imagePoints.clear();
             publishTransforms();
-            image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
+            image_in = cv_bridge::toCvShare(image_msg, "mono8")->image;
             image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
 
             double fov_x, fov_y;
