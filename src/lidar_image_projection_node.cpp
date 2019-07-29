@@ -91,7 +91,7 @@ private:
     std::string lidar_in_topic;
 
     pcl::PointCloud<pcl::PointXYZRGB> out_cloud_pcl;
-    cv::Mat image_in;
+    cv::Mat image_in, image_out;
 
     int dist_cut_off;
 
@@ -103,6 +103,8 @@ private:
     double stddev_rot, stddev_trans;
 
     cv::Mat image_projected;
+
+    int frame_no;
 
 public:
     lidarImageProjection() {
@@ -168,6 +170,7 @@ public:
                          image_width,
                          distCoeff,
                          projection_matrix);
+        frame_no = 0;
     }
 
     void addGaussianNoise(Eigen::Matrix4d &transformation) {
@@ -338,10 +341,58 @@ public:
         }
     }
 
+    cv::Mat getSobelEdgeImage() {
+        cv::Mat image_gray;
+        cv::Mat image_edge;
+        cv::cvtColor(image_out, image_gray, CV_BGR2GRAY);
+
+//        cv::GaussianBlur(image_gray, image_gray, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
+        /// Generate grad_x and grad_y
+        cv::Mat grad_x, grad_y;
+        cv::Mat abs_grad_x, abs_grad_y;
+        /// Gradient X
+//        Scharr( image_gray, grad_x, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
+        cv::Sobel( image_gray, grad_x, CV_16S, 1, 0, 3, 1, 0, cv::BORDER_DEFAULT );
+        cv::convertScaleAbs( grad_x, abs_grad_x );
+
+        /// Gradient y
+//        Scharr( image_gray, grad_y, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
+        cv::Sobel( image_gray, grad_y, CV_16S, 0, 1, 3, 1, 0, cv::BORDER_DEFAULT );
+        cv::convertScaleAbs( grad_y, abs_grad_y );
+
+        /// Total Gradient (Approximate)
+        cv::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, image_edge);
+
+        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
+        return  image_edge;
+    }
+
+    cv::Mat getCannyEdgeImage() {
+        int edgeThresh = 1;
+        int lowThreshold;
+        int const max_lowThreshold = 100;
+        int ratio = 3;
+        int kernel_size = 3;
+
+        cv::Mat image_gray;
+        cv::Mat image_edge;
+        cv::cvtColor(image_out, image_gray, CV_BGR2GRAY);
+        cv::blur(image_gray, image_edge, cv::Size(3, 3));
+        Canny( image_edge,
+               image_edge, lowThreshold, lowThreshold*ratio, kernel_size );
+        /// Using Canny's output as a mask, we display our result
+        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
+        return image_edge;
+    }
+
+
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
                                  double min_height,
                                  double max_height) {
+        double error = 0;
+        double count = 0;
+        cv::Mat image_edge = getSobelEdgeImage();
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
@@ -353,23 +404,28 @@ public:
 //            double range = sqrt(X*X + Y*Y + Z*Z);
             double range = Z;
             int d = image_in.at<uchar>(v, u);
-            if(d > 0) {
-                ROS_INFO_STREAM(range - bf/(double)d);
+            if(d <= 0)
+                continue;
+            count++;
+            double depth_error = fabs(Z - bf/(double)d);
+            error += sqrt(depth_error);
+            image_out = image_edge;
+            if(color_projection) {
+                double red_field = 255*(range - min_range)/(max_range - min_range);
+                double green_field = 255*(max_range - range)/(max_range - min_range);
+                double blue_field = 255*(Z - min_height)/(max_height - min_height);
+                cv::circle(image_out, cv::Point2i(u, v), 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+            } else {
+                double red_field = 255;
+                double green_field = 255;
+                double blue_field = 255;
+                cv::circle(image_out, cv::Point2i(u, v), 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             }
-//            if(color_projection) {
-//                double red_field = 255*(range - min_range)/(max_range - min_range);
-//                double green_field = 255*(max_range - range)/(max_range - min_range);
-//                double blue_field = 255*(Z - min_height)/(max_height - min_height);
-//                cv::circle(image_in, imagePoints[i], 1,
-//                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
-//            } else {
-//                double red_field = 255;
-//                double green_field = 255;
-//                double blue_field = 255;
-//                cv::circle(image_in, imagePoints[i], 1,
-//                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
-//            }
         }
+
+//        ROS_INFO_STREAM("Error: " << error/count);
     }
 
     void colorLidarPointsOnImage() {
@@ -386,15 +442,15 @@ public:
         double time2 = image_msg->header.stamp.toSec();
         double time_diff = time1 - time2;
         if(fabs(time_diff) <= 0.01) {
-            ROS_INFO_STREAM("Time diff: " << time_diff);
+//            ROS_INFO_STREAM("Time diff: " << time_diff);
             lidar_frameId = cloud_msg->header.frame_id;
             objectPoints_L.clear();
             objectPoints_C.clear();
             imagePoints.clear();
             publishTransforms();
             image_in = cv_bridge::toCvShare(image_msg, "mono8")->image;
+            cv::cvtColor(image_in, image_out, CV_GRAY2BGR);
             image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
-
             double fov_x, fov_y;
             fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
             fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
@@ -479,7 +535,7 @@ public:
             /// Color Lidar Points on the image a/c to distance
             colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
             sensor_msgs::ImagePtr msg =
-                    cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_in).toImageMsg();
+                    cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_out).toImageMsg();
             image_pub.publish(msg);
 //        cv::imshow("view1", image_in);
 //        cv::waitKey(10);
