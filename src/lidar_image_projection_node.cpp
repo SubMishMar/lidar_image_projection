@@ -50,7 +50,6 @@
 
 #include <random>
 
-#include <Velodyne.h>
 #include <Image.h>
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2,

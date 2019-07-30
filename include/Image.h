@@ -26,7 +26,8 @@ class Image
 public:
   Image(cv::Mat _img);
 
-  cv::Mat computeEdgeImage();
+  cv::Mat computeSobelEdgeImage();
+  cv::Mat computeScharrEdgeImage();
 
   // Inverse Distance Tranform
   cv::Mat computeIDTEdgeImage();

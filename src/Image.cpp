@@ -41,7 +41,7 @@ Image::Image(cv::Mat _img) :
 }
 
 // outputs grayscle CV_8UC1 matrix
-Mat Image::computeEdgeImage()
+Mat Image::computeSobelEdgeImage()
 {
 
   Mat grayImg;
@@ -68,7 +68,36 @@ Mat Image::computeEdgeImage()
 
   /// Total Gradient (approximate)
   addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, edges);
+  cv::imshow("Sobel Edge Image", edges);
+  cv::waitKey(1);
   return edges;
+}
+
+Mat Image::computeScharrEdgeImage(){
+    Mat grayImg;
+    if (this->img.channels() > 1){
+        grayImg = Mat(this->img.size(), CV_8UC1);
+        cvtColor(this->img, grayImg, CV_BGR2GRAY);
+    }else{
+        this->img.copyTo(grayImg);
+    }
+
+    Mat edges;
+    Mat grad_x, grad_y;
+    Mat abs_grad_x, abs_grad_y;
+    /// Gradient X
+    Scharr(grayImg, grad_x, CV_16S, 1, 0, 1, 0, BORDER_DEFAULT);
+    convertScaleAbs(grad_x, abs_grad_x);
+
+    /// Gradient Y
+    Scharr(grayImg, grad_y, CV_16S, 1, 0, 1, 0, BORDER_DEFAULT);
+    convertScaleAbs(grad_y, abs_grad_y);
+
+    /// Total Gradient (approximate)
+    addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, edges);
+    cv::imshow("Scharr Edge Image", edges);
+    cv::waitKey(1);
+    return edges;
 }
 
 Mat Image::computeIDTEdgeImage(Mat &edge_img)
@@ -124,7 +153,7 @@ Mat Image::computeIDTEdgeImage(Mat &edge_img)
 
 Mat Image::computeIDTEdgeImage()
 {
-  Mat edge_img = this->computeEdgeImage();
+  Mat edge_img = this->computeScharrEdgeImage();
   Mat grayscale_idt_edge_img;
   Mat idt_edge_img = this->computeIDTEdgeImage(edge_img).mul(cv::Scalar::all(255.0));
   idt_edge_img.convertTo(grayscale_idt_edge_img, CV_8UC1);
