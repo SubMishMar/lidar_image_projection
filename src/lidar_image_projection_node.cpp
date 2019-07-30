@@ -51,6 +51,7 @@
 #include <random>
 
 #include <Velodyne.h>
+#include <Image.h>
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2,
         sensor_msgs::Image> SyncPolicy;
@@ -343,67 +344,17 @@ public:
         }
     }
 
-    cv::Mat getSobelEdgeImage() {
-        cv::Mat image_gray;
-        cv::Mat image_edge;
-        cv::cvtColor(image_out, image_gray, CV_BGR2GRAY);
-
-//        cv::GaussianBlur(image_gray, image_gray, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
-        /// Generate grad_x and grad_y
-        cv::Mat grad_x, grad_y;
-        cv::Mat abs_grad_x, abs_grad_y;
-        /// Gradient X
-        cv::Sobel( image_gray, grad_x, CV_16S, 1, 0, 3, 1, 0, cv::BORDER_DEFAULT);
-        cv::convertScaleAbs( grad_x, abs_grad_x );
-
-        /// Gradient y
-        cv::Sobel( image_gray, grad_y, CV_16S, 0, 1, 3, 1, 0, cv::BORDER_DEFAULT );
-        cv::convertScaleAbs( grad_y, abs_grad_y );
-
-        /// Total Gradient (Approximate)
-        cv::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, image_edge);
-
-        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
-        cv::imshow("image_edge_sobel", image_edge);
-        cv::waitKey(1);
-        return  image_edge;
-    }
-
-    cv::Mat getScharrEdgeImage() {
-        cv::Mat image_gray;
-        cv::Mat image_edge;
-        cv::cvtColor(image_out, image_gray, CV_BGR2GRAY);
-
-//        cv::GaussianBlur(image_gray, image_gray, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
-        /// Generate grad_x and grad_y
-        cv::Mat grad_x, grad_y;
-        cv::Mat abs_grad_x, abs_grad_y;
-        /// Gradient X
-        Scharr( image_gray, grad_x, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
-        cv::convertScaleAbs( grad_x, abs_grad_x );
-
-        /// Gradient y
-        Scharr( image_gray, grad_y, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
-        cv::convertScaleAbs( grad_y, abs_grad_y );
-
-        /// Total Gradient (Approximate)
-        cv::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, image_edge);
-
-        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
-        cv::imshow("image_edge_scharr", image_edge);
-        cv::waitKey(1);
-        return  image_edge;
-    }
-
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
                                  double min_height,
                                  double max_height) {
         double error = 0;
         double count = 0;
-        cv::Mat image_edge = getSobelEdgeImage();
-//        cv::Mat image_edge = getScharrEdgeImage();
-
+        Image::Image img(image_in);
+        cv::Mat image_edge = img.computeIDTEdgeImage();
+        cv::imshow("idt edge image", image_edge);
+        cv::cvtColor(image_edge, image_edge, CV_GRAY2BGR);
+        cv::waitKey(1);
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
