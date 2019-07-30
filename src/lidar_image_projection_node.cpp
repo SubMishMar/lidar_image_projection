@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -351,12 +353,10 @@ public:
         cv::Mat grad_x, grad_y;
         cv::Mat abs_grad_x, abs_grad_y;
         /// Gradient X
-//        Scharr( image_gray, grad_x, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
-        cv::Sobel( image_gray, grad_x, CV_16S, 1, 0, 3, 1, 0, cv::BORDER_DEFAULT );
+        cv::Sobel( image_gray, grad_x, CV_16S, 1, 0, 3, 1, 0, cv::BORDER_DEFAULT);
         cv::convertScaleAbs( grad_x, abs_grad_x );
 
         /// Gradient y
-//        Scharr( image_gray, grad_y, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
         cv::Sobel( image_gray, grad_y, CV_16S, 0, 1, 3, 1, 0, cv::BORDER_DEFAULT );
         cv::convertScaleAbs( grad_y, abs_grad_y );
 
@@ -364,27 +364,36 @@ public:
         cv::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, image_edge);
 
         cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
+        cv::imshow("image_edge_sobel", image_edge);
+        cv::waitKey(1);
         return  image_edge;
     }
 
-    cv::Mat getCannyEdgeImage() {
-        int edgeThresh = 1;
-        int lowThreshold;
-        int const max_lowThreshold = 100;
-        int ratio = 3;
-        int kernel_size = 3;
-
+    cv::Mat getScharrEdgeImage() {
         cv::Mat image_gray;
         cv::Mat image_edge;
         cv::cvtColor(image_out, image_gray, CV_BGR2GRAY);
-        cv::blur(image_gray, image_edge, cv::Size(3, 3));
-        Canny( image_edge,
-               image_edge, lowThreshold, lowThreshold*ratio, kernel_size );
-        /// Using Canny's output as a mask, we display our result
-        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
-        return image_edge;
-    }
 
+//        cv::GaussianBlur(image_gray, image_gray, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
+        /// Generate grad_x and grad_y
+        cv::Mat grad_x, grad_y;
+        cv::Mat abs_grad_x, abs_grad_y;
+        /// Gradient X
+        Scharr( image_gray, grad_x, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
+        cv::convertScaleAbs( grad_x, abs_grad_x );
+
+        /// Gradient y
+        Scharr( image_gray, grad_y, CV_16S, 1, 0, 1, 0, cv::BORDER_DEFAULT );
+        cv::convertScaleAbs( grad_y, abs_grad_y );
+
+        /// Total Gradient (Approximate)
+        cv::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, image_edge);
+
+        cv::cvtColor(image_edge, image_edge, cv::COLOR_GRAY2BGR);
+        cv::imshow("image_edge_scharr", image_edge);
+        cv::waitKey(1);
+        return  image_edge;
+    }
 
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
@@ -393,6 +402,8 @@ public:
         double error = 0;
         double count = 0;
         cv::Mat image_edge = getSobelEdgeImage();
+//        cv::Mat image_edge = getScharrEdgeImage();
+
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
@@ -424,16 +435,9 @@ public:
                            CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             }
         }
-
+        cv::imshow("projected image", image_out);
+        cv::waitKey(1);
 //        ROS_INFO_STREAM("Error: " << error/count);
-    }
-
-    void colorLidarPointsOnImage() {
-        for(size_t i = 0; i < imagePoints.size(); i++) {
-            cv::Vec3b rgb = atf(image_in, imagePoints[i]);
-            cv::circle(image_projected, imagePoints[i], 1,
-                       CV_RGB(rgb.val[2], rgb.val[1], rgb.val[0]), -1, 8, 0);
-        }
     }
 
     void callback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
