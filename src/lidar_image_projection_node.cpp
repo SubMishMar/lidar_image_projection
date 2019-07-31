@@ -103,9 +103,7 @@ private:
     std::string camera_name;
 
     double stddev_rot, stddev_trans;
-
     cv::Mat image_projected;
-
     int frame_no;
 
 public:
@@ -343,6 +341,16 @@ public:
         }
     }
 
+    void findSimilarity(std::vector<cv::Point2i> edge_points, cv::Mat idt_edge_img) {
+        double score = 0;
+        for(int i = 0; i < edge_points.size(); i++) {
+            int u = edge_points[i].x;
+            int v = edge_points[i].y;
+            score += (double)idt_edge_img.at<uchar>(v, u);
+        }
+        ROS_WARN_STREAM("Similarity Score: " << score);
+    }
+
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
                                  double min_height,
@@ -350,14 +358,15 @@ public:
         double error = 0;
         double count = 0;
         Image::Image img(image_in);
-        cv::Mat image_edge = img.computeIDTEdgeImage();
-        cv::imshow("idt edge image", image_edge);
-        cv::cvtColor(image_edge, image_edge, CV_GRAY2BGR);
+        cv::Mat image_edge_gray = img.computeIDTEdgeImage();
+        cv::imshow("idt edge image", image_edge_gray);
         cv::waitKey(1);
+        cv::Mat image_edge_color;
+        cv::cvtColor(image_edge_gray, image_edge_color, CV_GRAY2BGR);
+        std::vector<cv::Point2i> edge_points_lidar;
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
-            cv::Vec3f intensity = image_in.at<cv::Vec3b>(v, u);
 
             double X = objectPoints_C[i].x;
             double Y = objectPoints_C[i].y;
@@ -367,10 +376,8 @@ public:
             int d = image_in.at<uchar>(v, u);
             if(d <= 0)
                 continue;
-            count++;
-            double depth_error = fabs(Z - bf/(double)d);
-            error += sqrt(depth_error);
-            image_out = image_edge;
+            edge_points_lidar.push_back(cv::Point2i(u, v));
+            image_out = image_edge_color;
             if(color_projection) {
                 double red_field = 255*(range - min_range)/(max_range - min_range);
                 double green_field = 255*(max_range - range)/(max_range - min_range);
@@ -385,9 +392,9 @@ public:
                            CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             }
         }
+        findSimilarity(edge_points_lidar, image_edge_gray);
         cv::imshow("projected image", image_out);
         cv::waitKey(1);
-//        ROS_INFO_STREAM("Error: " << error/count);
     }
 
     void callback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
@@ -493,6 +500,8 @@ public:
             image_pub.publish(msg);
 //        cv::imshow("view1", image_in);
 //        cv::waitKey(10);
+            frame_no = image_msg->header.seq;
+            ROS_WARN_STREAM("Processed frame: " << frame_no);
         } else {
             ROS_WARN_STREAM("Time Diff too high!");
         }
