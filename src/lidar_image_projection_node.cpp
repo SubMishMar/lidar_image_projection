@@ -324,6 +324,7 @@ public:
         cv::Mat image_edge_color;
         cv::cvtColor(image_edge_gray, image_edge_color, CV_GRAY2BGR);
         std::vector<cv::Point2i> edge_points_lidar;
+        cv::Mat image_lidar_pts = cv::Mat::zeros(image_in.size(), image_out.type());
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
@@ -344,6 +345,8 @@ public:
                 double blue_field = 255*(Z - min_height)/(max_height - min_height);
                 cv::circle(image_out, cv::Point2i(u, v), 1,
                            CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+                cv::circle(image_lidar_pts, cv::Point2i(u, v), 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             } else {
                 double red_field = 255;
                 double green_field = 255;
@@ -352,6 +355,10 @@ public:
                            CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             }
         }
+
+        cv::imshow("image_lidar_pts", image_lidar_pts);
+        cv::waitKey(1);
+
         findSimilarity(edge_points_lidar, image_edge_gray);
         cv::imshow("projected image", image_out);
         cv::waitKey(1);
