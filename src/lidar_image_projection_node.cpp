@@ -188,6 +188,7 @@ public:
         double roll = data_rot[0]*M_PI/180;
         double pitch = data_rot[1]*M_PI/180;
         double yaw = data_rot[2]*M_PI/180;
+//        ROS_WARN_STREAM("Roll: " << roll << " Pitch: " << pitch << " Yaw: " << yaw);
 
         Eigen::Matrix3d m;
         m = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX())
@@ -209,6 +210,7 @@ public:
         trans(0) = data_trans[0];
         trans(1) = data_trans[1];
         trans(2) = data_trans[2];
+//        ROS_WARN_STREAM("X: " << trans.x() << " Y: " << trans.y() << " Z: " << trans.z());
 
         Eigen::Matrix4d trans_noise = Eigen::Matrix4d::Identity();
         trans_noise.block(0, 0, 3, 3) = m;
@@ -248,48 +250,6 @@ public:
             n.shutdown();
         }
         return ans;
-    }
-
-    pcl::PointCloud<pcl::PointXYZ >::Ptr planeFilter(const sensor_msgs::PointCloud2ConstPtr &cloud_msg) {
-
-        pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::fromROSMsg(*cloud_msg, *in_cloud);
-
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_x(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_y(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ >::Ptr plane(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ >::Ptr plane_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-
-        /// Pass through filters
-        pcl::PassThrough<pcl::PointXYZ> pass_x;
-        pass_x.setInputCloud(in_cloud);
-        pass_x.setFilterFieldName("x");
-        pass_x.setFilterLimits(0.0, 5.0);
-        pass_x.filter(*cloud_filtered_x);
-        pcl::PassThrough<pcl::PointXYZ> pass_y;
-        pass_y.setInputCloud(cloud_filtered_x);
-        pass_y.setFilterFieldName("y");
-        pass_y.setFilterLimits(-1.25, 1.25);
-        pass_y.filter(*cloud_filtered_y);
-
-        /// Plane Segmentation
-        pcl::SampleConsensusModelPlane<pcl::PointXYZ>::Ptr model_p(
-                new pcl::SampleConsensusModelPlane<pcl::PointXYZ>(cloud_filtered_y));
-        pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(model_p);
-        ransac.setDistanceThreshold(0.01);
-        ransac.computeModel();
-        std::vector<int> inliers_indicies;
-        ransac.getInliers(inliers_indicies);
-        pcl::copyPointCloud<pcl::PointXYZ>(*cloud_filtered_y, inliers_indicies, *plane);
-
-        /// Statistical Outlier Removal
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-        sor.setInputCloud(plane);
-        sor.setMeanK (50);
-        sor.setStddevMulThresh (1);
-        sor.filter (*plane_filtered);
-
-        return plane_filtered;
     }
 
     cv::Vec3b atf(cv::Mat rgb, cv::Point2d xy_f){
@@ -348,7 +308,7 @@ public:
             int v = edge_points[i].y;
             score += (double)idt_edge_img.at<uchar>(v, u);
         }
-        ROS_WARN_STREAM("Similarity Score: " << score);
+        ROS_WARN_STREAM("Similarity Score: " << score/(double)edge_points.size());
     }
 
     void colorLidarPointsOnImage(double min_range,
@@ -421,66 +381,55 @@ public:
             max_range = min_height = -INFINITY;
             min_range = max_height = INFINITY;
 
-            pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-            if(project_only_plane) {
-                in_cloud = planeFilter(cloud_msg);
-                for(size_t i = 0; i < in_cloud->points.size(); i++) {
-                    objectPoints_L.push_back(cv::Point3d(in_cloud->points[i].x, in_cloud->points[i].y, in_cloud->points[i].z));
+            pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+
+            pcl::fromROSMsg(*cloud_msg, *in_cloud);
+            for(size_t i = 0; i < in_cloud->points.size(); i++) {
+
+                // Reject points behind the LiDAR
+                if(in_cloud->points[i].x < 0)
+                    continue;
+
+                Eigen::Vector4d pointCloud_L;
+                pointCloud_L[0] = in_cloud->points[i].x;
+                pointCloud_L[1] = in_cloud->points[i].y;
+                pointCloud_L[2] = in_cloud->points[i].z;
+                pointCloud_L[3] = 1;
+
+                Eigen::Vector3d pointCloud_C;
+                pointCloud_C = C_T_L.block(0, 0, 3, 4)*pointCloud_L;
+
+                double X = pointCloud_C[0];
+                double Y = pointCloud_C[1];
+                double Z = pointCloud_C[2];
+
+                double Xangle = atan2(X, Z)*180/CV_PI;
+                double Yangle = atan2(Y, Z)*180/CV_PI;
+
+                if(Xangle < -fov_x/2 || Xangle > fov_x/2)
+                    continue;
+
+                if(Yangle < -fov_y/2 || Yangle > fov_y/2)
+                    continue;
+
+                double range = Z;
+                if(range > max_range) {
+                    max_range = range;
                 }
-                cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
-            } else {
-                pcl::PCLPointCloud2 *cloud_in = new pcl::PCLPointCloud2;
-                pcl_conversions::toPCL(*cloud_msg, *cloud_in);
-                pcl::fromPCLPointCloud2(*cloud_in, *in_cloud);
 
-                for(size_t i = 0; i < in_cloud->points.size(); i++) {
-
-                    // Reject points behind the LiDAR
-                    if(in_cloud->points[i].x < 0)
-                        continue;
-
-                    Eigen::Vector4d pointCloud_L;
-                    pointCloud_L[0] = in_cloud->points[i].x;
-                    pointCloud_L[1] = in_cloud->points[i].y;
-                    pointCloud_L[2] = in_cloud->points[i].z;
-                    pointCloud_L[3] = 1;
-
-                    Eigen::Vector3d pointCloud_C;
-                    pointCloud_C = C_T_L.block(0, 0, 3, 4)*pointCloud_L;
-
-                    double X = pointCloud_C[0];
-                    double Y = pointCloud_C[1];
-                    double Z = pointCloud_C[2];
-
-                    double Xangle = atan2(X, Z)*180/CV_PI;
-                    double Yangle = atan2(Y, Z)*180/CV_PI;
-
-                    if(Xangle < -fov_x/2 || Xangle > fov_x/2)
-                        continue;
-
-                    if(Yangle < -fov_y/2 || Yangle > fov_y/2)
-                        continue;
-
-//                double range = sqrt(X*X + Y*Y + Z*Z);
-                    double range = Z;
-                    if(range > max_range) {
-                        max_range = range;
-                    }
-
-                    if(range < min_range) {
-                        min_range = range;
-                    }
-
-                    if(Z > max_height)
-                        max_height = Z;
-
-                    if(Z < min_height)
-                        min_height = Z;
-
-                    objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
-                    objectPoints_C.push_back(cv::Point3d(X, Y, Z));
+                if(range < min_range) {
+                    min_range = range;
                 }
-//            std::cout << objectPoints_L.size() << std::endl;
+
+                if(Z > max_height)
+                    max_height = Z;
+
+                if(Z < min_height)
+                    min_height = Z;
+
+                objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
+                objectPoints_C.push_back(cv::Point3d(X, Y, Z));
+
                 cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
             }
 
