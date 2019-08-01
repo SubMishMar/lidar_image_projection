@@ -311,6 +311,18 @@ public:
         ROS_WARN_STREAM("Similarity Score: " << score/(double)edge_points.size());
     }
 
+    void correlation(cv::Mat image_1, cv::Mat image_2) {
+//        // convert data-type to "float"
+//        cv::Mat im_float_1;
+//        image_1.convertTo(im_float_1, CV_32F);
+//        cv::Mat im_float_2;
+//        image_2.convertTo(im_float_2, CV_32F);
+//        ROS_ASSERT(image_1.type() == image_2.type());
+        cv::Mat output;
+        cv::matchTemplate(image_1, image_2, output, CV_TM_CCOEFF_NORMED);
+        ROS_INFO_STREAM("OUTPUT: " << output);
+    }
+
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
                                  double min_height,
@@ -353,15 +365,19 @@ public:
                 double blue_field = 255;
                 cv::circle(image_out, cv::Point2i(u, v), 1,
                            CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+                cv::circle(image_lidar_pts, cv::Point2i(u, v), 1,
+                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
             }
         }
+        cv::cvtColor(image_lidar_pts, image_lidar_pts, CV_BGR2GRAY);
+//        findSimilarity(edge_points_lidar, image_edge_gray);
 
         cv::imshow("image_lidar_pts", image_lidar_pts);
         cv::waitKey(1);
 
-        findSimilarity(edge_points_lidar, image_edge_gray);
         cv::imshow("projected image", image_out);
         cv::waitKey(1);
+        correlation(image_lidar_pts, image_edge_gray);
     }
 
     void callback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
