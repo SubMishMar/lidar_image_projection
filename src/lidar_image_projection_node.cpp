@@ -109,8 +109,6 @@ private:
 
     double corr_score;
 
-    std::vector<Frame> dataFrames;
-
 public:
     lidarImageProjection() {
         camera_in_topic = readParam<std::string>(nh, "camera_in_topic");
@@ -482,7 +480,7 @@ public:
             frame_no = image_msg->header.seq;
             ROS_WARN_STREAM("Frame no: " << frame_count);
             if(++frame_count == 50) {
-                ROS_INFO_STREAM("No of data frames collected: " << dataFrames.size());
+                ROS_INFO_STREAM("No of data frames collected: " << frame_count);
                 ros::shutdown();
             }
         } else {
