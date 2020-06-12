@@ -151,7 +151,7 @@ public:
             }
         }
 
-        addGaussianNoise(C_T_L);
+//        addGaussianNoise(C_T_L);
 
         L_T_C = C_T_L.inverse();
 
@@ -176,51 +176,6 @@ public:
         frame_no = 0;
         frame_count = 0;
         corr_score = 0.0;
-    }
-
-    void addGaussianNoise(Eigen::Matrix4d &transformation) {
-        std::vector<double> data_rot = {0, 0, 0};
-        const double mean_rot = 0.0;
-        std::default_random_engine generator_rot;
-        std::normal_distribution<double> dist(mean_rot, stddev_rot);
-
-        // Add Gaussian noise
-        for (auto& x : data_rot) {
-            x = x + dist(generator_rot);
-        }
-
-        // Output the result, for demonstration purposes
-        double roll = data_rot[0]*M_PI/180;
-        double pitch = data_rot[1]*M_PI/180;
-        double yaw = data_rot[2]*M_PI/180;
-//        ROS_WARN_STREAM("Roll: " << roll << " Pitch: " << pitch << " Yaw: " << yaw);
-
-        Eigen::Matrix3d m;
-        m = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX())
-            * Eigen::AngleAxisd(pitch,  Eigen::Vector3d::UnitY())
-            * Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
-
-        std::vector<double> data_trans = {0, 0, 0};
-        const double mean_trans = 0.0;
-        std::default_random_engine generator_trans;
-        std::normal_distribution<double> dist_trans(mean_trans, stddev_trans);
-
-        // Add Gaussian noise
-        for (auto& x : data_trans) {
-            x = x + dist_trans(generator_trans);
-        }
-
-        // Output the result, for demonstration purposes
-        Eigen::Vector3d trans;
-        trans(0) = data_trans[0];
-        trans(1) = data_trans[1];
-        trans(2) = data_trans[2];
-//        ROS_WARN_STREAM("X: " << trans.x() << " Y: " << trans.y() << " Z: " << trans.z());
-
-        Eigen::Matrix4d trans_noise = Eigen::Matrix4d::Identity();
-        trans_noise.block(0, 0, 3, 3) = m;
-        trans_noise.block(0, 3, 3, 1) = trans;
-        transformation = transformation*trans_noise;
     }
 
     void readCameraParams(std::string cam_config_file_path,
@@ -306,44 +261,12 @@ public:
         }
     }
 
-    void findSimilarity(std::vector<cv::Point2i> edge_points, cv::Mat idt_edge_img) {
-        double score = 0;
-        for(int i = 0; i < edge_points.size(); i++) {
-            int u = edge_points[i].x;
-            int v = edge_points[i].y;
-            score += (double)idt_edge_img.at<uchar>(v, u);
-        }
-        ROS_WARN_STREAM("Similarity Score: " << score/(double)edge_points.size());
-    }
-
-    void correlation(cv::Mat image_1, cv::Mat image_2) {
-//        // convert data-type to "float"
-//        cv::Mat im_float_1;
-//        image_1.convertTo(im_float_1, CV_32F);
-//        cv::Mat im_float_2;
-//        image_2.convertTo(im_float_2, CV_32F);
-//        ROS_ASSERT(image_1.type() == image_2.type());
-        cv::Mat output;
-        cv::matchTemplate(image_1, image_2, output, CV_TM_CCOEFF_NORMED);
-        double abs_corr_score = fabs(output.at<float>(0));
-        corr_score += abs_corr_score;
-        ROS_INFO_STREAM("Corr Score: " << abs_corr_score);
-    }
-
     void colorLidarPointsOnImage(double min_range,
                                  double max_range,
                                  double min_height,
                                  double max_height) {
         double error = 0;
         double count = 0;
-        Image::Image img(image_in);
-        cv::Mat image_edge_gray = img.computeIDTEdgeImage();
-        cv::imshow("idt edge image", image_edge_gray);
-        cv::waitKey(1);
-        cv::Mat image_edge_color;
-        cv::cvtColor(image_edge_gray, image_edge_color, CV_GRAY2BGR);
-        std::vector<cv::Point2i> edge_points_lidar;
-        cv::Mat image_lidar_pts = cv::Mat::zeros(image_in.size(), image_out.type());
         for(size_t i = 0; i < imagePoints.size(); i++) {
             int u = imagePoints[i].x;
             int v = imagePoints[i].y;
@@ -351,73 +274,60 @@ public:
             double X = objectPoints_C[i].x;
             double Y = objectPoints_C[i].y;
             double Z = objectPoints_C[i].z;
-//            double range = sqrt(X*X + Y*Y + Z*Z);
-            double range = Z;
-            int d = image_in.at<uchar>(v, u);
-            if(d <= 0)
-                continue;
-            edge_points_lidar.push_back(cv::Point2i(u, v));
-            image_out = image_edge_color;
+            double range = sqrt(X*X + Y*Y + Z*Z);
+
             if(color_projection) {
                 double red_field = 255*(range - min_range)/(max_range - min_range);
                 double green_field = 255*(max_range - range)/(max_range - min_range);
                 double blue_field = 255*(Z - min_height)/(max_height - min_height);
-                cv::circle(image_out, cv::Point2i(u, v), 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
-                cv::circle(image_lidar_pts, cv::Point2i(u, v), 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+                cv::circle(image_out, cv::Point2i(u, v), 2,
+                           CV_RGB(red_field, green_field, blue_field), 5);
             } else {
                 double red_field = 255;
                 double green_field = 255;
                 double blue_field = 255;
-                cv::circle(image_out, cv::Point2i(u, v), 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
-                cv::circle(image_lidar_pts, cv::Point2i(u, v), 1,
-                           CV_RGB(red_field, green_field, blue_field), -1, 1, 0);
+                cv::circle(image_out, cv::Point2i(u, v), 2,
+                           CV_RGB(red_field, green_field, blue_field), 5);
             }
         }
-        cv::cvtColor(image_lidar_pts, image_lidar_pts, CV_BGR2GRAY);
-//        findSimilarity(edge_points_lidar, image_edge_gray);
-
-        cv::imshow("image_lidar_pts", image_lidar_pts);
-        cv::waitKey(1);
-
+        if(camera_name == "pylon") {
+            cv::resize(image_out, image_out, cv::Size(), 0.5, 0.5);
+        }
         cv::imshow("projected image", image_out);
         cv::waitKey(1);
-        correlation(image_lidar_pts, image_edge_gray);
     }
 
     void callback(const sensor_msgs::PointCloud2ConstPtr &cloud_msg,
                   const sensor_msgs::ImageConstPtr &image_msg) {
+        ROS_INFO_STREAM("At Callback");
         double time1 = cloud_msg->header.stamp.toSec();
         double time2 = image_msg->header.stamp.toSec();
         double time_diff = time1 - time2;
-        if(fabs(time_diff) <= 0.01) {
 //            ROS_INFO_STREAM("Time diff: " << time_diff);
-            lidar_frameId = cloud_msg->header.frame_id;
-            objectPoints_L.clear();
-            objectPoints_C.clear();
-            imagePoints.clear();
-            publishTransforms();
-            image_in = cv_bridge::toCvShare(image_msg, "mono8")->image;
-            pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-            pcl::fromROSMsg(*cloud_msg, *in_cloud);
+        lidar_frameId = cloud_msg->header.frame_id;
+        objectPoints_L.clear();
+        objectPoints_C.clear();
+        imagePoints.clear();
+        publishTransforms();
+        image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        pcl::fromROSMsg(*cloud_msg, *in_cloud);
 
-            cv::cvtColor(image_in, image_out, CV_GRAY2BGR);
-            image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
-            double fov_x, fov_y;
-            fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
-            fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
+        image_out = image_in;
+        image_projected = cv::Mat::zeros(image_height, image_width, CV_8UC3);
+        double fov_x, fov_y;
+        fov_x = 2*atan2(image_width, 2*projection_matrix.at<double>(0, 0))*180/CV_PI;
+        fov_y = 2*atan2(image_height, 2*projection_matrix.at<double>(1, 1))*180/CV_PI;
 
-            double max_range, min_range;
-            double min_height, max_height;
-            max_range = min_height = -INFINITY;
-            min_range = max_height = INFINITY;
+        double max_range, min_range;
+        double min_height, max_height;
+        max_range = min_height = -INFINITY;
+        min_range = max_height = INFINITY;
 
-            for(size_t i = 0; i < in_cloud->points.size(); i++) {
+        for(size_t i = 0; i < in_cloud->points.size(); i++) {
 
                 // Reject points behind the LiDAR
-                if(in_cloud->points[i].x < 0)
+                if(in_cloud->points[i].x > 0)
                     continue;
 
                 Eigen::Vector4d pointCloud_L;
@@ -461,31 +371,24 @@ public:
                 objectPoints_C.push_back(cv::Point3d(X, Y, Z));
 
                 cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
-            }
-
-            /// Color the Point Cloud
-            colorPointCloud();
-
-            pcl::toROSMsg(out_cloud_pcl, out_cloud_ros);
-            out_cloud_ros.header.frame_id = cloud_msg->header.frame_id;
-            out_cloud_ros.header.stamp = cloud_msg->header.stamp;
-
-            cloud_pub.publish(out_cloud_ros);
-
-            /// Color Lidar Points on the image a/c to distance
-            colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
-            sensor_msgs::ImagePtr msg =
-                    cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_out).toImageMsg();
-            image_pub.publish(msg);
-            frame_no = image_msg->header.seq;
-            ROS_WARN_STREAM("Frame no: " << frame_count);
-            if(++frame_count == 50) {
-                ROS_INFO_STREAM("No of data frames collected: " << frame_count);
-                ros::shutdown();
-            }
-        } else {
-            ROS_WARN_STREAM("Time Diff too high!");
         }
+
+        /// Color the Point Cloud
+        colorPointCloud();
+
+        pcl::toROSMsg(out_cloud_pcl, out_cloud_ros);
+        out_cloud_ros.header.frame_id = cloud_msg->header.frame_id;
+        out_cloud_ros.header.stamp = cloud_msg->header.stamp;
+
+        cloud_pub.publish(out_cloud_ros);
+
+        /// Color Lidar Points on the image a/c to distance
+        colorLidarPointsOnImage(min_range, max_range, min_height, max_height);
+        sensor_msgs::ImagePtr msg =
+                    cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_out).toImageMsg();
+        image_pub.publish(msg);
+        frame_no = image_msg->header.seq;
+//        ROS_WARN_STREAM("Frame no: " << frame_count);
     }
 };
 

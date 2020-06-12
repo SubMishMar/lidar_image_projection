@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
+set (CMAKE_CXX_STANDARD 14)
 project(lidar_image_projection)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
