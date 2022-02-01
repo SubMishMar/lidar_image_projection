@@ -50,7 +50,7 @@
 
 #include <random>
 
-#include <Image.h>
+//#include <Image.h>
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2,
         sensor_msgs::Image> SyncPolicy;
@@ -324,10 +324,10 @@ public:
         max_range = min_height = -INFINITY;
         min_range = max_height = INFINITY;
 
-        for(size_t i = 0; i < in_cloud->points.size(); i++) {
+        for(size_t i = 0; i < in_cloud->points.size(); i+=5) {
 
                 // Reject points behind the LiDAR
-                if(in_cloud->points[i].x > 0)
+                if(in_cloud->points[i].x < 0)
                     continue;
 
                 Eigen::Vector4d pointCloud_L;
@@ -342,6 +342,9 @@ public:
                 double X = pointCloud_C[0];
                 double Y = pointCloud_C[1];
                 double Z = pointCloud_C[2];
+
+                if(sqrt(X*X+Y*Y+Z*Z) > 5)
+                    continue;
 
                 double Xangle = atan2(X, Z)*180/CV_PI;
                 double Yangle = atan2(Y, Z)*180/CV_PI;

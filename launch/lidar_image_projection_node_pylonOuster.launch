@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
   <param name ="/use_sim_time" value="true"/>
-  <param name = "result_file" type="string" value="$(find lidar_image_projection)/result/C_T_L_pylonOuster.txt"/>
+  <param name = "result_file" type="string" value="$(find lidar_image_projection)/result/C_T_L_pylonOuster_cincalib.txt"/>
 
   <param name= "project_only_plane" type="bool" value="false"/>
   <param name= "color_projection" type="bool" value="true"/>
 
   <param name = "camera_in_topic" type="string" value="/pylon_camera_node/image_raw"/>
-  <param name = "lidar_in_topic" type="string" value="/os1_cloud_node/points"/>
+  <param name = "lidar_in_topic" type="string" value="/os_cloud_node/points"/>
   <param name = "camera_name" type="string" value="pylon"/>
   
-  <param name = "dist_cut_off" type="int" value="100"/>
+  <param name = "dist_cut_off" type="int" value="2"/>
 
   <param name = "cam_config_file_path" type="string" value="$(find lidar_image_projection)/config/pylon_camera.yaml" />
   <param name = "stddev_rot" type="double" value="0.0"/>

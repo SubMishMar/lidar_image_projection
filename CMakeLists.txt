@@ -144,7 +144,6 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node 
 		        src/lidar_image_projection_node.cpp
-                src/Image.cpp
 		)
 
 ## Rename C++ executable without prefix
