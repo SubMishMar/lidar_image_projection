@@ -84,6 +84,7 @@ private:
 
     std::vector<cv::Point3d> objectPoints_L, objectPoints_C;
     std::vector<cv::Point2d> imagePoints;
+    std::vector<double> objectPoints_intensities;
 
     sensor_msgs::PointCloud2 out_cloud_ros;
 
@@ -280,16 +281,19 @@ public:
                 double red_field = 255*(range - min_range)/(max_range - min_range);
                 double green_field = 255*(max_range - range)/(max_range - min_range);
                 double blue_field = 255*(Z - min_height)/(max_height - min_height);
-                cv::circle(image_out, cv::Point2i(u, v), 2,
+                cv::circle(image_out, cv::Point2i(u, v), 5,
                            CV_RGB(red_field, green_field, blue_field), 5);
             } else {
                 double red_field = 255;
                 double green_field = 255;
                 double blue_field = 255;
-                cv::circle(image_out, cv::Point2i(u, v), 2,
-                           CV_RGB(red_field, green_field, blue_field), 5);
+                cv::circle(image_out, cv::Point2i(u, v), 10,
+                           CV_RGB(red_field, green_field, blue_field), 10);
             }
+//            cv::circle(image_out, cv::Point2i(u, v), 3,
+//                       CV_RGB(objectPoints_intensities[i], objectPoints_intensities[i], objectPoints_intensities[i]), 2);
         }
+        imwrite("/home/usl/Downloads/output-files-lidar-camera-projections/"+std::to_string(frame_count) + ".png", image_out);
         if(camera_name == "pylon") {
             cv::resize(image_out, image_out, cv::Size(), 0.5, 0.5);
         }
@@ -308,6 +312,7 @@ public:
         objectPoints_L.clear();
         objectPoints_C.clear();
         imagePoints.clear();
+        objectPoints_intensities.clear();
         publishTransforms();
         image_in = cv_bridge::toCvShare(image_msg, "bgr8")->image;
         pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -324,7 +329,7 @@ public:
         max_range = min_height = -INFINITY;
         min_range = max_height = INFINITY;
 
-        for(size_t i = 0; i < in_cloud->points.size(); i+=5) {
+        for(size_t i = 0; i < in_cloud->points.size(); i+=2) {
 
                 // Reject points behind the LiDAR
                 if(in_cloud->points[i].x < 0)
@@ -372,7 +377,7 @@ public:
 
                 objectPoints_L.push_back(cv::Point3d(pointCloud_L[0], pointCloud_L[1], pointCloud_L[2]));
                 objectPoints_C.push_back(cv::Point3d(X, Y, Z));
-
+                objectPoints_intensities.push_back(in_cloud->points[i].intensity);
                 cv::projectPoints(objectPoints_L, rvec, tvec, projection_matrix, distCoeff, imagePoints, cv::noArray());
         }
 
@@ -391,7 +396,8 @@ public:
                     cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_out).toImageMsg();
         image_pub.publish(msg);
         frame_no = image_msg->header.seq;
-//        ROS_WARN_STREAM("Frame no: " << frame_count);
+        ROS_WARN_STREAM("Frame no: " << frame_count);
+        frame_count++;
     }
 };
 

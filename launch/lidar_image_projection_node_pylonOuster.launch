@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <launch>
+
   <param name ="/use_sim_time" value="true"/>
-  <param name = "result_file" type="string" value="$(find lidar_image_projection)/result/C_T_L_pylonOuster_cincalib.txt"/>
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/camera_imu_lidar_results/C_T_L_final_2022_01_28_15_06_51.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/camera_imu_lidar_results/C_T_L_final_2022_01_28_15_11_20.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/camera_imu_lidar_results/C_T_L_final_2022_01_28_15_15_06.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/camera_imu_lidar_results/C_T_L_final_2022_01_28_15_20_21.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/camera_imu_lidar_results/C_T_L_final_2022_01_28_15_30_47.txt"/> -->
+
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/C_T_L_concatanated_2022_01_28_15_06_51.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/C_T_L_concatanated_2022_01_28_15_11_20.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/C_T_L_concatanated_2022_01_28_15_15_06.txt"/> -->
+<!--   <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/C_T_L_concatanated_2022_01_28_15_20_21.txt"/> -->
+  <param name = "result_file" type="string" value="/home/usl/catkin_ws/src/camera_imu_lidar_calibration/data/C_T_L_concatanated_2022_01_28_15_30_47.txt"/>
 
   <param name= "project_only_plane" type="bool" value="false"/>
   <param name= "color_projection" type="bool" value="true"/>
@@ -10,11 +22,13 @@
   <param name = "lidar_in_topic" type="string" value="/os_cloud_node/points"/>
   <param name = "camera_name" type="string" value="pylon"/>
   
-  <param name = "dist_cut_off" type="int" value="2"/>
+  <param name = "dist_cut_off" type="int" value="6"/>
 
   <param name = "cam_config_file_path" type="string" value="$(find lidar_image_projection)/config/pylon_camera.yaml" />
   <param name = "stddev_rot" type="double" value="0.0"/>
   <param name = "stddev_trans" type="double" value="0.0"/>
+
   <node  pkg="lidar_image_projection" name="lidar_image_projection" type="lidar_image_projection_node" output="screen">
   </node>
+
 </launch>
